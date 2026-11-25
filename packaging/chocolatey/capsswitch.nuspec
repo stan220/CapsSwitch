@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>capsswitch</id>
+    <version>__VERSION__</version>
+    <title>CapsSwitch</title>
+    <authors>stan220</authors>
+    <owners>stan220</owners>
+    <projectUrl>https://github.com/stan220/CapsSwitch</projectUrl>
+    <licenseUrl>https://github.com/stan220/CapsSwitch/blob/main/LICENSE</licenseUrl>
+    <iconUrl>https://raw.githubusercontent.com/stan220/CapsSwitch/main/assets/icon/CapsSwitch.png</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <summary>Switch the Windows input language with CapsLock</summary>
+    <description>CapsLock switches the Windows input language. A small popup shows the new language for half a second.</description>
+    <tags>capslock keyboard layout language windows utility</tags>
+    <releaseNotes>https://github.com/stan220/CapsSwitch/releases/tag/v__VERSION__</releaseNotes>
+  </metadata>
+</package>

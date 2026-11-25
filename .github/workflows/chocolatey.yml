@@ -1,0 +1,65 @@
+name: Chocolatey
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Released version, for example 0.2.0
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Publish to Chocolatey
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Pack and push
+        shell: pwsh
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:CHOCO_API_KEY) {
+            Write-Warning 'CHOCO_API_KEY secret is not set; skipping Chocolatey publish.'
+            exit 0
+          }
+
+          $version = $env:VERSION.TrimStart('v')
+          $tag = "v$version"
+          New-Item -ItemType Directory -Force dl | Out-Null
+          gh release download $tag --repo $env:GITHUB_REPOSITORY `
+            --pattern 'capsswitch-windows-x86_64.zip' `
+            --pattern 'capsswitch-windows-i686.zip' `
+            --dir dl
+          if ($LASTEXITCODE -ne 0) { throw "Failed to download release assets for $tag" }
+
+          $sum64 = (Get-FileHash dl/capsswitch-windows-x86_64.zip -Algorithm SHA256).Hash
+          $sum32 = (Get-FileHash dl/capsswitch-windows-i686.zip -Algorithm SHA256).Hash
+
+          Push-Location packaging/chocolatey
+          foreach ($file in 'capsswitch.nuspec', 'tools/chocolateyinstall.ps1') {
+            (Get-Content $file -Raw).
+              Replace('__VERSION__', $version).
+              Replace('__CHECKSUM64__', $sum64).
+              Replace('__CHECKSUM32__', $sum32) | Set-Content $file
+          }
+
+          choco pack capsswitch.nuspec
+          if ($LASTEXITCODE -ne 0) { throw 'choco pack failed' }
+          choco push "capsswitch.$version.nupkg" --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+          if ($LASTEXITCODE -ne 0) { throw 'choco push failed' }
+          Pop-Location
