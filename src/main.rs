@@ -45,6 +45,7 @@ const OVERLAY_FRAME_MS: u32 = 16;
 const OVERLAY_MAX_ALPHA: f32 = 240.0;
 
 static CAPS_LOCK_PRESSED: AtomicBool = AtomicBool::new(false);
+static CAPS_MESSAGE: AtomicU32 = AtomicU32::new(0);
 static SHELL_MESSAGE: AtomicU32 = AtomicU32::new(0);
 static ACTIVATION_MESSAGE: AtomicU32 = AtomicU32::new(0);
 static MESSAGE_TARGET: AtomicIsize = AtomicIsize::new(0);
@@ -54,6 +55,7 @@ static SWITCH_METHOD: OnceLock<SwitchMethod> = OnceLock::new();
 thread_local! {
     static OVERLAY: RefCell<Overlay> = RefCell::new(Overlay::default());
     static ACTIVATION: Cell<Option<Instant>> = const { Cell::new(None) };
+    static LAST_LAYOUT: Cell<Option<HKL>> = const { Cell::new(None) };
 }
 
 enum SwitchMethod {
@@ -496,6 +498,12 @@ unsafe extern "system" fn overlay_window_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    let caps_message = CAPS_MESSAGE.load(Ordering::Relaxed);
+    if caps_message != 0 && message == caps_message {
+        switch_input_language();
+        return LRESULT(0);
+    }
+
     let shell_message = SHELL_MESSAGE.load(Ordering::Relaxed);
     if shell_message != 0 && message == shell_message {
         let should_schedule = ACTIVATION.with(|activation| {
@@ -514,6 +522,9 @@ unsafe extern "system" fn overlay_window_proc(
     if activation_message != 0 && message == activation_message {
         let _ = KillTimer(window, PENDING_LANGUAGE_TIMER_ID);
         ACTIVATION.with(|activation| activation.set(Some(Instant::now())));
+        if let Some(layout) = current_keyboard_layout() {
+            LAST_LAYOUT.with(|last| last.set(Some(layout)));
+        }
         return LRESULT(0);
     }
 
@@ -530,7 +541,15 @@ unsafe extern "system" fn overlay_window_proc(
         WM_TIMER if wparam.0 == PENDING_LANGUAGE_TIMER_ID => {
             let _ = KillTimer(window, PENDING_LANGUAGE_TIMER_ID);
             if let Some(layout) = current_keyboard_layout() {
-                show_language_overlay(language_name(layout));
+                let changed = LAST_LAYOUT.with(|last| {
+                    let previous = last.get();
+                    last.set(Some(layout));
+                    previous.is_none_or(|previous| previous.0 != layout.0)
+                });
+
+                if changed {
+                    show_language_overlay(language_name(layout));
+                }
             }
             LRESULT(0)
         }
@@ -546,7 +565,12 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
             match wparam.0 as u32 {
                 WM_KEYDOWN | WM_SYSKEYDOWN => {
                     if !CAPS_LOCK_PRESSED.swap(true, Ordering::Relaxed) {
-                        switch_input_language();
+                        let message = CAPS_MESSAGE.load(Ordering::Relaxed);
+                        let target =
+                            HWND(MESSAGE_TARGET.load(Ordering::Relaxed) as *mut core::ffi::c_void);
+                        if message != 0 && !target.0.is_null() {
+                            let _ = PostMessageW(target, message, WPARAM(0), LPARAM(0));
+                        }
                     }
                 }
                 WM_KEYUP | WM_SYSKEYUP => {
@@ -567,14 +591,17 @@ fn main() -> Result<()> {
         let message_target = create_message_target()?;
         MESSAGE_TARGET.store(message_target.0 as isize, Ordering::Relaxed);
 
+        let caps_message = RegisterWindowMessageW(w!("CapsSwitch.CapsLockPressed"));
         let shell_message = RegisterWindowMessageW(w!("CapsSwitch.InputLanguageChanged"));
         let activation_message = RegisterWindowMessageW(w!("CapsSwitch.WindowActivated"));
-        if shell_message == 0 || activation_message == 0 {
+        if caps_message == 0 || shell_message == 0 || activation_message == 0 {
             return Err(Error::from_win32());
         }
+        CAPS_MESSAGE.store(caps_message, Ordering::Relaxed);
         SHELL_MESSAGE.store(shell_message, Ordering::Relaxed);
         ACTIVATION_MESSAGE.store(activation_message, Ordering::Relaxed);
         ACTIVATION.with(|activation| activation.set(Some(Instant::now())));
+        LAST_LAYOUT.with(|last| last.set(current_keyboard_layout()));
 
         let (shell_library, shell_hook) = install_shell_hook()?;
 
