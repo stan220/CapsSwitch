@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="bg6" x1="120" y1="80" x2="900" y2="950" gradientUnits="userSpaceOnUse">
+<stop stop-color="#F0F9FF"/><stop offset="1" stop-color="#DBEAFE"/>
+</linearGradient>
+<linearGradient id="knob6" x1="400" y1="390" x2="620" y2="640" gradientUnits="userSpaceOnUse">
+<stop stop-color="#3B82F6"/><stop offset="1" stop-color="#7C3AED"/>
+</linearGradient></defs>
+<rect x="32" y="32" width="960" height="960" rx="224" fill="#DBEAFE"/>
+<rect x="42" y="42" width="940" height="940" rx="214" fill="none" stroke="#BFDBFE" stroke-width="8"/>
+<g fill="#64748B" font-family="DejaVu Sans, Arial, sans-serif" font-size="120" font-weight="700" letter-spacing="18" text-anchor="middle">
+<text x="519" y="282">CAPS</text>
+</g>
+<g fill="#334155" font-family="DejaVu Sans, Arial, sans-serif" font-size="280" font-weight="700" text-anchor="middle">
+<text x="238" y="646">A</text><text x="790" y="646" font-family="Noto Sans CJK SC, Microsoft YaHei, PingFang SC, sans-serif">文</text>
+</g>
+<circle cx="512" cy="540" r="144" fill="url(#knob6)"/>
+<circle cx="512" cy="540" r="126" fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="4"/>
+<g fill="none" stroke="#FFFFFF" stroke-width="21" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 30)">
+<path d="M454 478H570M536 444L570 478L536 512"/>
+<path d="M570 548H454M488 514L454 548L488 582"/>
+</g>
+<rect x="392" y="806" width="240" height="20" rx="10" fill="#93C5FD" opacity=".7"/></svg>
