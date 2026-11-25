@@ -26,7 +26,7 @@ caps_switch_hook.dll
 config.toml
 ```
 
-Run `caps-switch.exe`. There is no console window. To close it, end `caps-switch.exe` in Task Manager.
+Run `caps-switch.exe`. There is no console window. On administrator accounts, approve the UAC prompt so the app can also work in elevated windows such as Task Manager. To close it, end `caps-switch.exe` in Task Manager.
 
 ## Settings
 
