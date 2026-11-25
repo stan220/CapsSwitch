@@ -1,3 +1,4 @@
 # Доступные значения: "winapi" и "alt_shift".
 method = "winapi"
 overlay = true
+autostart = true

@@ -35,13 +35,16 @@ Run `caps-switch.exe`. There is no console window. On administrator accounts, ap
 ```toml
 method = "winapi"
 overlay = true
+autostart = true
 ```
 
 `winapi` switches the layout directly. `alt_shift` sends Left Alt+Shift instead.
 
 Set `overlay = false` if you only need CapsLock switching without the popup.
 
-Restart the app after editing the file. Without the file, the defaults are `winapi` and `overlay = true`.
+Autostart is enabled with `autostart = true`. The app creates a Task Scheduler entry that starts it at logon with the highest available privileges. Set `autostart = false` to remove the entry.
+
+Restart the app after editing the file. Without the file, the defaults are `winapi`, `overlay = true`, and `autostart = true`.
 
 ## Notes
 

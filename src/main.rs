@@ -3,12 +3,15 @@
 use std::cell::{Cell, RefCell};
 use std::fs;
 use std::os::windows::ffi::OsStrExt;
+use std::os::windows::process::CommandExt;
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use windows::core::{s, w, Error, Result, PCWSTR};
 use windows::Win32::Foundation::{
-    FreeLibrary, BOOL, COLORREF, HMODULE, HWND, LPARAM, LRESULT, RECT, WPARAM,
+    CloseHandle, FreeLibrary, GetLastError, BOOL, COLORREF, ERROR_ALREADY_EXISTS, HMODULE, HWND,
+    LPARAM, LRESULT, RECT, WPARAM,
 };
 use windows::Win32::Globalization::{GetLocaleInfoW, LOCALE_SABBREVLANGNAME};
 use windows::Win32::Graphics::Dwm::DwmGetColorizationColor;
@@ -20,20 +23,21 @@ use windows::Win32::Graphics::Gdi::{
     PAINTSTRUCT, TRANSPARENT,
 };
 use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
+use windows::Win32::System::Threading::{CreateMutexW, Sleep, CREATE_NO_WINDOW};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyboardLayout, GetKeyboardLayoutList, SendInput, HKL, INPUT, INPUT_0, INPUT_KEYBOARD,
     KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CAPITAL, VK_LMENU, VK_LSHIFT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClientRect,
+    CallNextHookEx, CreateWindowExW, DefWindowProcW, DispatchMessageW, FindWindowW, GetClientRect,
     GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindowThreadProcessId, KillTimer,
-    PostMessageW, RegisterClassW, RegisterWindowMessageW, SetLayeredWindowAttributes, SetTimer,
-    SetWindowPos, SetWindowTextW, SetWindowsHookExW, ShowWindow, TranslateMessage,
-    UnhookWindowsHookEx, CS_HREDRAW, CS_VREDRAW, HHOOK, HWND_MESSAGE, HWND_TOPMOST,
-    KBDLLHOOKSTRUCT, LWA_ALPHA, MSG, SM_CXSCREEN, SM_CYSCREEN, SWP_NOACTIVATE, SWP_SHOWWINDOW,
-    SW_HIDE, WH_KEYBOARD_LL, WM_ERASEBKGND, WM_INPUTLANGCHANGEREQUEST, WM_KEYDOWN, WM_KEYUP,
-    WM_PAINT, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    PostMessageW, PostThreadMessageW, RegisterClassW, RegisterWindowMessageW,
+    SetLayeredWindowAttributes, SetTimer, SetWindowPos, SetWindowTextW, SetWindowsHookExW,
+    ShowWindow, TranslateMessage, UnhookWindowsHookEx, CS_HREDRAW, CS_VREDRAW, HHOOK, HWND_MESSAGE,
+    HWND_TOPMOST, KBDLLHOOKSTRUCT, LWA_ALPHA, MSG, SM_CXSCREEN, SM_CYSCREEN, SWP_NOACTIVATE,
+    SWP_SHOWWINDOW, SW_HIDE, WH_KEYBOARD_LL, WM_ERASEBKGND, WM_INPUTLANGCHANGEREQUEST, WM_KEYDOWN,
+    WM_KEYUP, WM_PAINT, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
 
 const OVERLAY_TIMER_ID: usize = 1;
@@ -107,6 +111,38 @@ fn read_switch_method() -> SwitchMethod {
 
 fn read_overlay_enabled() -> bool {
     !matches!(read_config_value("overlay").as_deref(), Some("false"))
+}
+
+fn read_autostart_enabled() -> bool {
+    !matches!(read_config_value("autostart").as_deref(), Some("false"))
+}
+
+fn configure_autostart(enabled: bool) {
+    let Ok(executable) = std::env::current_exe() else {
+        return;
+    };
+
+    let mut command = Command::new("schtasks.exe");
+    if enabled {
+        command.args([
+            "/Create",
+            "/TN",
+            "CapsSwitch",
+            "/SC",
+            "ONLOGON",
+            "/RL",
+            "HIGHEST",
+            "/IT",
+            "/TR",
+        ]);
+        command
+            .arg(format!("\"{}\"", executable.display()))
+            .arg("/F");
+    } else {
+        command.args(["/Delete", "/TN", "CapsSwitch", "/F"]);
+    }
+
+    let _ = command.creation_flags(CREATE_NO_WINDOW.0).status();
 }
 
 fn next_keyboard_layout() -> Option<(HWND, HKL)> {
@@ -267,6 +303,29 @@ fn switch_input_language() {
 
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(Some(0)).collect()
+}
+
+fn close_previous_instance() -> bool {
+    unsafe {
+        let Ok(window) = FindWindowW(w!("CapsSwitchMessageTarget"), None) else {
+            return true;
+        };
+
+        let thread_id = GetWindowThreadProcessId(window, None);
+        if thread_id == 0 {
+            return false;
+        }
+        let _ = PostThreadMessageW(thread_id, WM_QUIT, WPARAM(0), LPARAM(0));
+
+        for _ in 0..100 {
+            if FindWindowW(w!("CapsSwitchMessageTarget"), None).is_err() {
+                return true;
+            }
+            Sleep(20);
+        }
+
+        false
+    }
 }
 
 fn create_message_target() -> Result<HWND> {
@@ -587,7 +646,20 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
 }
 
 fn main() -> Result<()> {
+    configure_autostart(read_autostart_enabled());
+
     unsafe {
+        let instance_mutex = CreateMutexW(None, false, w!("Local\\CapsSwitch"))?;
+        let previous_running = GetLastError() == ERROR_ALREADY_EXISTS;
+        if previous_running && FindWindowW(w!("CapsSwitchMessageTarget"), None).is_err() {
+            let _ = CloseHandle(instance_mutex);
+            return Ok(());
+        }
+        if !close_previous_instance() {
+            let _ = CloseHandle(instance_mutex);
+            return Ok(());
+        }
+
         let message_target = create_message_target()?;
         MESSAGE_TARGET.store(message_target.0 as isize, Ordering::Relaxed);
 
@@ -621,6 +693,7 @@ fn main() -> Result<()> {
         let _ = UnhookWindowsHookEx(keyboard_hook_handle);
         let _ = UnhookWindowsHookEx(shell_hook);
         let _ = FreeLibrary(shell_library);
+        let _ = CloseHandle(instance_mutex);
     }
 
     Ok(())
