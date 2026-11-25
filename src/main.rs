@@ -13,7 +13,9 @@ use windows::Win32::Foundation::{
     CloseHandle, FreeLibrary, GetLastError, BOOL, COLORREF, ERROR_ALREADY_EXISTS, HMODULE, HWND,
     LPARAM, LRESULT, RECT, WPARAM,
 };
-use windows::Win32::Globalization::{GetLocaleInfoW, LOCALE_SABBREVLANGNAME};
+use windows::Win32::Globalization::{
+    GetLocaleInfoW, LOCALE_SABBREVLANGNAME, LOCALE_SNATIVELANGNAME,
+};
 use windows::Win32::Graphics::Dwm::DwmGetColorizationColor;
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, CreateFontW, CreateRoundRectRgn, CreateSolidBrush, DeleteObject, DrawTextW,
@@ -176,24 +178,37 @@ fn next_keyboard_layout() -> Option<(HWND, HKL)> {
     }
 }
 
+fn locale_info(locale: usize, kind: u32) -> Option<String> {
+    let mut buffer = [0u16; 128];
+    unsafe {
+        let length = GetLocaleInfoW(locale as u32, kind, Some(&mut buffer));
+        if length > 1 {
+            Some(String::from_utf16_lossy(&buffer[..length as usize - 1]))
+        } else {
+            None
+        }
+    }
+}
+
 fn language_name(layout: HKL) -> String {
     let locale = layout.0 as usize & 0xffff;
 
-    match locale & 0x3ff {
-        0x09 => return String::from("ENG"),
-        0x19 => return String::from("РУС"),
-        _ => {}
+    if locale & 0x3ff == 0x09 {
+        return String::from("ENG");
     }
 
-    let mut buffer = [0u16; 128];
-    unsafe {
-        let length = GetLocaleInfoW(locale as u32, LOCALE_SABBREVLANGNAME, Some(&mut buffer));
-        if length > 1 {
-            String::from_utf16_lossy(&buffer[..length as usize - 1]).to_uppercase()
-        } else {
-            String::from("???")
+    if let Some(native_name) = locale_info(locale, LOCALE_SNATIVELANGNAME) {
+        if !native_name.is_ascii() {
+            let abbreviated: String = native_name.chars().take(3).collect();
+            if abbreviated.chars().count() == 3 {
+                return abbreviated.to_uppercase();
+            }
         }
     }
+
+    locale_info(locale, LOCALE_SABBREVLANGNAME)
+        .map(|name| name.to_uppercase())
+        .unwrap_or_else(|| String::from("???"))
 }
 
 unsafe fn install_shell_hook() -> Result<(HMODULE, HHOOK)> {
