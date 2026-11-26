@@ -2,7 +2,6 @@
 
 use std::cell::{Cell, RefCell};
 use std::fs;
-use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::process::CommandExt;
 use std::process::Command;
@@ -231,22 +230,8 @@ unsafe fn install_shell_hook() -> Result<(HMODULE, HHOOK)> {
     Ok((module, hook))
 }
 
-fn trace_overlay(message: &str) {
-    if let Ok(executable) = std::env::current_exe() {
-        if let Ok(mut file) = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(executable.with_file_name("overlay-trace.txt"))
-        {
-            let _ = writeln!(file, "{message}");
-        }
-    }
-}
-
 fn schedule_language_overlay() {
-    trace_overlay("schedule requested");
     if !*OVERLAY_ENABLED.get_or_init(read_overlay_enabled) {
-        trace_overlay("overlay disabled");
         return;
     }
 
@@ -447,15 +432,9 @@ fn overlay_alpha(elapsed: Duration) -> u8 {
 }
 
 fn show_language_overlay(language: String) {
-    trace_overlay("show requested");
-    let window = match create_overlay() {
-        Ok(window) => window,
-        Err(error) => {
-            trace_overlay(&format!("create overlay failed: {error:?}"));
-            return;
-        }
+    let Ok(window) = create_overlay() else {
+        return;
     };
-    trace_overlay(&format!("overlay created: {:?}", window));
 
     OVERLAY.with(|overlay| {
         let mut state = overlay.borrow_mut();
@@ -492,7 +471,6 @@ fn show_language_overlay(language: String) {
             SetTimer(window, OVERLAY_TIMER_ID, OVERLAY_FRAME_MS, None);
         }
     });
-    trace_overlay("overlay shown");
 }
 
 fn update_overlay() {
@@ -505,7 +483,6 @@ fn update_overlay() {
 
     unsafe {
         if elapsed >= OVERLAY_DURATION {
-            trace_overlay("overlay hidden");
             let _ = KillTimer(window, OVERLAY_TIMER_ID);
             let _ = ShowWindow(window, SW_HIDE);
         } else {
@@ -644,7 +621,6 @@ unsafe extern "system" fn overlay_window_proc(
                     previous.is_none_or(|previous| previous.0 != layout.0)
                 });
 
-                trace_overlay(&format!("language timer fired; changed: {changed}"));
                 if changed {
                     show_language_overlay(language_name(layout));
                 }

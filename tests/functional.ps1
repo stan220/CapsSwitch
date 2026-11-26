@@ -20,14 +20,6 @@ public static class NativeMethods
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr FindWindow(string className, string windowName);
 
-    public delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
-
-    [DllImport("user32.dll")]
-    public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    public static extern int GetClassName(IntPtr window, StringBuilder className, int maximumLength);
-
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
 
@@ -203,40 +195,6 @@ try {
         Start-Sleep -Milliseconds 50
     }
     if (-not $overlaySeen) {
-        Write-Host "CapsSwitch running: $(-not $script:app.HasExited); overlay handle after Caps Lock: $script:overlay"
-        Write-Host "Effective config: $([IO.File]::ReadAllText($configPath))"
-        $tracePath = Join-Path $packagePath 'overlay-trace.txt'
-        if (Test-Path $tracePath) {
-            Write-Host "Overlay trace: $([IO.File]::ReadAllText($tracePath))"
-        }
-        else {
-            Write-Host 'Overlay trace was not created.'
-        }
-        $enumCallback = [CapsSwitch.NativeMethods+EnumWindowsProc] {
-            param($window, $parameter)
-            $windowProcessId = [uint32]0
-            [void][CapsSwitch.NativeMethods]::GetWindowThreadProcessId($window, [ref]$windowProcessId)
-            if ($windowProcessId -eq $script:app.Id) {
-                $className = [Text.StringBuilder]::new(256)
-                [void][CapsSwitch.NativeMethods]::GetClassName($window, $className, $className.Capacity)
-                $visible = [CapsSwitch.NativeMethods]::IsWindowVisible($window)
-                Write-Host "App window: $window; class: $className; visible: $visible"
-            }
-            return $true
-        }
-        [void][CapsSwitch.NativeMethods]::EnumWindows($enumCallback, [IntPtr]::Zero)
-        [CapsSwitch.NativeMethods]::keybd_event(0xA4, 0, 0, [UIntPtr]::Zero)
-        [CapsSwitch.NativeMethods]::keybd_event(0xA0, 0, 0, [UIntPtr]::Zero)
-        [CapsSwitch.NativeMethods]::keybd_event(0xA0, 0, 2, [UIntPtr]::Zero)
-        [CapsSwitch.NativeMethods]::keybd_event(0xA4, 0, 2, [UIntPtr]::Zero)
-        for ($attempt = 0; $attempt -lt 40; $attempt++) {
-            $script:overlay = [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchOverlay', [NullString]::Value)
-            if ($script:overlay -ne [IntPtr]::Zero) {
-                Write-Host "Overlay handle after Alt+Shift: $script:overlay"
-                break
-            }
-            Start-Sleep -Milliseconds 50
-        }
         throw 'The language overlay did not appear.'
     }
 
@@ -266,3 +224,5 @@ finally {
         Set-WinUserLanguageList -LanguageList $originalLanguages -Force
     }
 }
+
+$global:LASTEXITCODE = 0
