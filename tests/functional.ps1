@@ -8,11 +8,13 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 if (-not ('CapsSwitch.NativeMethods' -as [type])) {
-    Add-Type -Namespace CapsSwitch -Name NativeMethods -MemberDefinition @'
+    Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
+namespace CapsSwitch
+{
 public static class NativeMethods
 {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -44,6 +46,7 @@ public static class NativeMethods
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int GetWindowText(IntPtr window, StringBuilder text, int maximumLength);
+}
 }
 '@
 }
