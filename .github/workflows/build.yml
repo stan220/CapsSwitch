@@ -195,6 +195,11 @@ jobs:
             $target = (Get-Item $command -ErrorAction Stop).Target
             if (-not $target) { $target = $command }
             $packageDirectory = Split-Path -Parent $target
+            Get-ChildItem $packageDirectory -File | ForEach-Object {
+              $zone = Get-Content $_.FullName -Stream Zone.Identifier -ErrorAction SilentlyContinue
+              if ($zone) { Write-Host "$($_.Name) Zone.Identifier: $zone" }
+              Unblock-File $_.FullName
+            }
           }
           else {
             $packageDirectory = Join-Path $env:ChocolateyInstall 'lib/capsswitch/tools'
