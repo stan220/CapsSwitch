@@ -149,6 +149,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $version = $env:RELEASE_TAG.TrimStart('v')
+          winget settings --enable LocalManifestFiles
           winget install --manifest "packaging/winget/$version" --accept-source-agreements --accept-package-agreements --disable-interactivity
           if ($LASTEXITCODE -ne 0) { throw 'WinGet installation failed.' }
 
