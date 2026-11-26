@@ -184,11 +184,21 @@ try {
     Assert-True (([CapsSwitch.NativeMethods]::GetKeyState(0x14) -band 1) -eq 0) 'Caps Lock changed the Caps Lock state.'
 
     Write-Host 'Checking the language overlay'
-    $overlay = [IntPtr]::Zero
-    Wait-Until {
+    $script:overlay = [IntPtr]::Zero
+    $overlaySeen = $false
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
         $script:overlay = [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchOverlay', $null)
-        $script:overlay -ne [IntPtr]::Zero -and [CapsSwitch.NativeMethods]::IsWindowVisible($script:overlay)
-    } 'the language overlay to appear'
+        if ($script:overlay -ne [IntPtr]::Zero -and [CapsSwitch.NativeMethods]::IsWindowVisible($script:overlay)) {
+            $overlaySeen = $true
+            break
+        }
+        Start-Sleep -Milliseconds 50
+    }
+    if (-not $overlaySeen) {
+        Write-Host "CapsSwitch running: $(-not $script:app.HasExited); overlay handle: $script:overlay"
+        Write-Host "Effective config: $([IO.File]::ReadAllText($configPath))"
+        throw 'The language overlay did not appear.'
+    }
 
     $title = [Text.StringBuilder]::new(256)
     [void][CapsSwitch.NativeMethods]::GetWindowText($script:overlay, $title, $title.Capacity)
