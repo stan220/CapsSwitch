@@ -120,7 +120,7 @@ function Start-CapsSwitch {
         if ($script:app.HasExited) {
             throw "CapsSwitch exited during startup with code $($script:app.ExitCode)."
         }
-        [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchMessageTarget', $null) -ne [IntPtr]::Zero
+        [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchMessageTarget', [NullString]::Value) -ne [IntPtr]::Zero
     } 'CapsSwitch to initialize its hooks'
 
     Wait-Until {
@@ -195,7 +195,7 @@ try {
     $script:overlay = [IntPtr]::Zero
     $overlaySeen = $false
     for ($attempt = 0; $attempt -lt 40; $attempt++) {
-        $script:overlay = [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchOverlay', $null)
+        $script:overlay = [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchOverlay', [NullString]::Value)
         if ($script:overlay -ne [IntPtr]::Zero -and [CapsSwitch.NativeMethods]::IsWindowVisible($script:overlay)) {
             $overlaySeen = $true
             break
@@ -230,7 +230,7 @@ try {
         [CapsSwitch.NativeMethods]::keybd_event(0xA0, 0, 2, [UIntPtr]::Zero)
         [CapsSwitch.NativeMethods]::keybd_event(0xA4, 0, 2, [UIntPtr]::Zero)
         for ($attempt = 0; $attempt -lt 40; $attempt++) {
-            $script:overlay = [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchOverlay', $null)
+            $script:overlay = [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchOverlay', [NullString]::Value)
             if ($script:overlay -ne [IntPtr]::Zero) {
                 Write-Host "Overlay handle after Alt+Shift: $script:overlay"
                 break
