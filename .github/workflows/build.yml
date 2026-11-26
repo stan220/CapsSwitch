@@ -190,9 +190,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ('${{ matrix.manager }}' -eq 'WinGet') {
-            $command = Get-Command caps-switch.exe -ErrorAction Stop
-            $target = (Get-Item $command.Source).Target
-            if (-not $target) { $target = $command.Source }
+            $command = Join-Path $env:LOCALAPPDATA 'Microsoft/WinGet/Links/caps-switch.exe'
+            $target = (Get-Item $command -ErrorAction Stop).Target
+            if (-not $target) { $target = $command }
             $packageDirectory = Split-Path -Parent $target
           }
           else {
