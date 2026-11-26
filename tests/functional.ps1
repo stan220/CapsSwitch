@@ -195,8 +195,20 @@ try {
         Start-Sleep -Milliseconds 50
     }
     if (-not $overlaySeen) {
-        Write-Host "CapsSwitch running: $(-not $script:app.HasExited); overlay handle: $script:overlay"
+        Write-Host "CapsSwitch running: $(-not $script:app.HasExited); overlay handle after Caps Lock: $script:overlay"
         Write-Host "Effective config: $([IO.File]::ReadAllText($configPath))"
+        [CapsSwitch.NativeMethods]::keybd_event(0xA4, 0, 0, [UIntPtr]::Zero)
+        [CapsSwitch.NativeMethods]::keybd_event(0xA0, 0, 0, [UIntPtr]::Zero)
+        [CapsSwitch.NativeMethods]::keybd_event(0xA0, 0, 2, [UIntPtr]::Zero)
+        [CapsSwitch.NativeMethods]::keybd_event(0xA4, 0, 2, [UIntPtr]::Zero)
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $script:overlay = [CapsSwitch.NativeMethods]::FindWindow('CapsSwitchOverlay', $null)
+            if ($script:overlay -ne [IntPtr]::Zero) {
+                Write-Host "Overlay handle after Alt+Shift: $script:overlay"
+                break
+            }
+            Start-Sleep -Milliseconds 50
+        }
         throw 'The language overlay did not appear.'
     }
 
