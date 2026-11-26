@@ -230,8 +230,16 @@ unsafe fn install_shell_hook() -> Result<(HMODULE, HHOOK)> {
     Ok((module, hook))
 }
 
+fn trace_overlay(message: &str) {
+    if let Ok(executable) = std::env::current_exe() {
+        let _ = fs::write(executable.with_file_name("overlay-trace.txt"), message);
+    }
+}
+
 fn schedule_language_overlay() {
+    trace_overlay("schedule requested");
     if !*OVERLAY_ENABLED.get_or_init(read_overlay_enabled) {
+        trace_overlay("overlay disabled");
         return;
     }
 
@@ -432,8 +440,13 @@ fn overlay_alpha(elapsed: Duration) -> u8 {
 }
 
 fn show_language_overlay(language: String) {
-    let Ok(window) = create_overlay() else {
-        return;
+    trace_overlay("show requested");
+    let window = match create_overlay() {
+        Ok(window) => window,
+        Err(error) => {
+            trace_overlay(&format!("create overlay failed: {error:?}"));
+            return;
+        }
     };
 
     OVERLAY.with(|overlay| {
@@ -621,6 +634,7 @@ unsafe extern "system" fn overlay_window_proc(
                     previous.is_none_or(|previous| previous.0 != layout.0)
                 });
 
+                trace_overlay(&format!("language timer fired; changed: {changed}"));
                 if changed {
                     show_language_overlay(language_name(layout));
                 }

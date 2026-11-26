@@ -197,6 +197,13 @@ try {
     if (-not $overlaySeen) {
         Write-Host "CapsSwitch running: $(-not $script:app.HasExited); overlay handle after Caps Lock: $script:overlay"
         Write-Host "Effective config: $([IO.File]::ReadAllText($configPath))"
+        $tracePath = Join-Path $packagePath 'overlay-trace.txt'
+        if (Test-Path $tracePath) {
+            Write-Host "Overlay trace: $([IO.File]::ReadAllText($tracePath))"
+        }
+        else {
+            Write-Host 'Overlay trace was not created.'
+        }
         [CapsSwitch.NativeMethods]::keybd_event(0xA4, 0, 0, [UIntPtr]::Zero)
         [CapsSwitch.NativeMethods]::keybd_event(0xA0, 0, 0, [UIntPtr]::Zero)
         [CapsSwitch.NativeMethods]::keybd_event(0xA0, 0, 2, [UIntPtr]::Zero)
